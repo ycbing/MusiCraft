@@ -46,6 +46,7 @@ export const songs = pgTable('songs', {
   coverUrl: text('cover_url'),
   duration: decimal('duration', { precision: 10, scale: 2 }),
   status: varchar('status', { length: 20 }).notNull().default('draft'),
+  shareToken: text('share_token'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { CoverImage } from '@/components/AlbumCover'
 import { Skeleton } from '@/components/ui/skeleton'
+import { AudioWaveBackground } from '@/components/AudioWaveBackground'
 import { toast } from 'sonner'
 import {
   Wand2, Sparkles, Loader2, Play, ArrowLeft, Music,
@@ -227,6 +228,9 @@ function CreatePageInner() {
 
   const [lyrics, setLyrics] = useState('')
   const [generatingLyrics, setGeneratingLyrics] = useState(false)
+  const [improving, setImproving] = useState(false)
+  const [showImprove, setShowImprove] = useState(false)
+  const [improveFeedback, setImproveFeedback] = useState('')
 
   const [generating, setGenerating] = useState(false)
   const [buttonState, setButtonState] = useState<'idle' | 'creating' | 'generating'>('idle')
@@ -284,6 +288,41 @@ function CreatePageInner() {
   const handleTypewriterComplete = useCallback(() => {
     setTypewriterActive(false)
   }, [])
+
+  const handleImproveLyrics = useCallback(async () => {
+    if (!improveFeedback.trim()) {
+      toast.error('请描述你想如何改进歌词')
+      return
+    }
+    setImproving(true)
+    setShowImprove(false)
+    try {
+      const res = await fetch('/api/generate/lyrics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'improve',
+          lyrics,
+          feedback: improveFeedback,
+          language,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+
+      const lines = data.lyrics.split('\n').filter(Boolean)
+      const displayLines = lines.slice(0, 24)
+      setTypewriterLines(displayLines)
+      setTypewriterActive(true)
+      setLyrics(data.lyrics)
+      setImproveFeedback('')
+      toast.success('歌词已改进！')
+    } catch (err: any) {
+      toast.error(err.message || '歌词改进失败')
+    } finally {
+      setImproving(false)
+    }
+  }, [improveFeedback, lyrics, language])
 
   const handleCreateSong = useCallback(async (e?: React.MouseEvent) => {
     if (e) {
@@ -368,6 +407,9 @@ function CreatePageInner() {
 
   return (
     <div className="min-h-screen pt-24 pb-20 relative">
+      {/* AudioWaveBackground — decorative background */}
+      <AudioWaveBackground opacity={0.03} height={100} position="bottom" />
+
       {/* ── Floating top bar (sticky + backdrop-blur) ── */}
       <div className="sticky top-16 z-40 -mt-12 pt-4 pb-4 mb-6 backdrop-blur-xl bg-black/30 border-b border-white/[0.04]">
         <div className="max-w-6xl mx-auto px-4 flex items-center justify-between">
@@ -445,6 +487,26 @@ function CreatePageInner() {
                   )}
                   AI 生成
                 </button>
+                {lyrics.trim() && (
+                  <button
+                    onClick={() => setShowImprove(true)}
+                    disabled={improving || typewriterActive}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20
+                      text-xs text-blue-300 font-medium
+                      hover:bg-blue-500/20 hover:border-blue-500/30
+                      hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/15
+                      active:scale-95
+                      transition-all duration-200
+                      disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {improving ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Wand2 className="w-3 h-3" />
+                    )}
+                    改进
+                  </button>
+                )}
               </div>
 
               {/* Skeleton while generating */}
@@ -606,6 +668,51 @@ function CreatePageInner() {
           </div>
         </div>
       </div>
+
+      {/* ── Improve Lyrics Modal ── */}
+      {showImprove && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => { setShowImprove(false); setImproveFeedback(''); }} />
+          <div className="relative glass-strong rounded-2xl p-6 max-w-md w-full shadow-2xl shadow-purple-500/20 border border-white/10 animate-in fade-in zoom-in-95">
+            <h3 className="font-title text-lg text-white mb-1">改进歌词</h3>
+            <p className="text-xs text-[color:var(--text-tertiary)] mb-4">描述你希望如何改进歌词</p>
+            <textarea
+              value={improveFeedback}
+              onChange={(e) => setImproveFeedback(e.target.value)}
+              placeholder="例如：更浪漫一些、增加一段副歌、用词更诗意…"
+              rows={3}
+              className="w-full rounded-xl bg-white/[0.03] border border-white/10 px-4 py-3 text-sm text-white
+                focus:outline-none focus:border-purple-500/40 focus:bg-white/[0.05] resize-none
+                transition-all duration-300
+                placeholder:text-[color:var(--text-muted)]
+                focus:shadow-[0_0_0_3px_rgba(139,92,246,0.1)] mb-4"
+              autoFocus
+            />
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => { setShowImprove(false); setImproveFeedback(''); }}
+                className="px-4 py-2 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-white/[0.05] transition-all"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleImproveLyrics}
+                disabled={improving || !improveFeedback.trim()}
+                className="px-4 py-2 rounded-lg bg-purple-500/20 border border-purple-500/30 text-xs text-purple-300 font-medium
+                  hover:bg-purple-500/30 hover:-translate-y-0.5
+                  active:scale-95 transition-all duration-200
+                  disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+              >
+                {improving ? (
+                  <><Loader2 className="w-3 h-3 animate-spin inline mr-1" /> 改进中...</>
+                ) : (
+                  '开始改进'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -44,6 +44,7 @@ export async function GET(
     updatedAt: song.updated_at,
     userId: song.user_id,
     userName: song.user_name,
+    shareToken: song.share_token,
   }
 
   return NextResponse.json({ song: mappedSong })
@@ -63,7 +64,7 @@ export async function PUT(
   const user = await getUser()
   const body = await req.json()
 
-  const allowedFields = ['title', 'lyrics', 'style', 'mood', 'language']
+  const allowedFields = ['title', 'lyrics', 'style', 'mood', 'language', 'share_token']
   const sets: string[] = []
   const values: any[] = []
   let idx = 1

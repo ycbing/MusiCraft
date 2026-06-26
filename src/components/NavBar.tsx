@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useSession, signOut } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
-import { Music, LogOut, Plus, Sparkles, Library, Search } from 'lucide-react'
+import { Music, LogOut, Plus, Sparkles, Library, Search, Settings } from 'lucide-react'
 import { VinylLogo } from '@/components/VinylLogo'
 
 export function NavBar() {
@@ -55,6 +55,11 @@ export function NavBar() {
                   <Button size="sm" variant="brand" className="gap-1.5">
                     <Plus className="w-4 h-4" /> <span className="hidden sm:inline">创作新歌</span>
                     <span className="hidden md:inline kbd ml-1">⌘ N</span>
+                  </Button>
+                </Link>
+                <Link href="/settings" className="hidden sm:flex">
+                  <Button variant="ghost" size="sm" className="gap-1.5">
+                    <Settings className="w-4 h-4" />
                   </Button>
                 </Link>
                 <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20">

@@ -31,22 +31,15 @@ const MOOD_LABELS: Record<string, string> = {
 
 const FLOATING_TAGS = ['流行', '摇滚', '电子', '古典', '爵士', 'R&B', '民谣', '说唱']
 
-// 示例作品（未登录或没有完成作品时显示）
-const SAMPLE_SONGS: Song[] = [
-  { id: 'sample-1', title: '夏日海边', lyrics: '', style: 'pop', mood: 'happy', language: 'zh', audioUrl: '/api/cos/sample-1.mp3', coverUrl: null, duration: 58, status: 'completed', createdAt: '2026-06-25T10:00:00Z', updatedAt: '2026-06-25T10:00:00Z' },
-  { id: 'sample-2', title: '雨夜霓虹', lyrics: '', style: 'electronic', mood: 'dreamy', language: 'zh', audioUrl: '/api/cos/sample-2.mp3', coverUrl: null, duration: 52, status: 'completed', createdAt: '2026-06-24T20:00:00Z', updatedAt: '2026-06-24T20:00:00Z' },
-  { id: 'sample-3', title: '初雪告白', lyrics: '', style: 'acoustic', mood: 'romantic', language: 'zh', audioUrl: '/api/cos/sample-3.mp3', coverUrl: null, duration: 45, status: 'completed', createdAt: '2026-06-23T18:00:00Z', updatedAt: '2026-06-23T18:00:00Z' },
-  { id: 'sample-4', title: '夜行者', lyrics: '', style: 'jazz', mood: 'calm', language: 'zh', audioUrl: '/api/cos/sample-4.mp3', coverUrl: null, duration: 60, status: 'completed', createdAt: '2026-06-22T22:00:00Z', updatedAt: '2026-06-22T22:00:00Z' },
-  { id: 'sample-5', title: '热血少年', lyrics: '', style: 'rock', mood: 'energetic', language: 'zh', audioUrl: '/api/cos/sample-5.mp3', coverUrl: null, duration: 48, status: 'completed', createdAt: '2026-06-21T16:00:00Z', updatedAt: '2026-06-21T16:00:00Z' },
-  { id: 'sample-6', title: '星空下', lyrics: '', style: 'lofi', mood: 'peaceful', language: 'zh', audioUrl: '/api/cos/sample-6.mp3', coverUrl: null, duration: 55, status: 'completed', createdAt: '2026-06-20T23:00:00Z', updatedAt: '2026-06-20T23:00:00Z' },
-]
+// Default stats while loading
+const DEFAULT_STATS = { totalSongs: 0, totalCreators: 0, totalStyles: 0, avgDuration: 0 }
 
 export default function HomePage() {
   const { data: session } = useSession()
   const router = useRouter()
   const [topic, setTopic] = useState('')
-  const [songs, setSongs] = useState<Song[]>(SAMPLE_SONGS)
-  const [songsLoaded, setSongsLoaded] = useState(true)
+  const [songs, setSongs] = useState<Song[]>([])
+  const [statsData, setStatsData] = useState(DEFAULT_STATS)
 
   const heroRef = useReveal<HTMLDivElement>()
   const featuredRef = useReveal<HTMLDivElement>()
@@ -54,13 +47,34 @@ export default function HomePage() {
   const ctaRef = useReveal<HTMLDivElement>()
 
   useEffect(() => {
+    // Fetch public stats
+    fetch('/api/stats')
+      .then(r => r.json())
+      .then(d => {
+        if (d.totalSongs !== undefined) {
+          setStatsData({
+            totalSongs: d.totalSongs,
+            totalCreators: d.totalCreators,
+            totalStyles: d.totalStyles,
+            avgDuration: d.avgDuration,
+          })
+        }
+        if (d.featuredSongs?.length > 0) {
+          setSongs(d.featuredSongs.slice(0, 6))
+        }
+      })
+      .catch(() => {})
+
+    // If user is logged in, also check their songs
     if (session?.user) {
       fetch('/api/songs')
         .then(r => r.json())
         .then(d => {
           const all = (d.songs || []) as Song[]
           const completed = all.filter(s => s.status === 'completed').slice(0, 6)
-          if (completed.length > 0) setSongs(completed)
+          if (completed.length > 0) {
+            setSongs(completed)
+          }
         })
         .catch(() => {})
     }
@@ -240,7 +254,7 @@ export default function HomePage() {
       </section>
 
       {/* ── Featured Songs ── */}
-      {songs.length > 0 && songsLoaded && (
+      {songs.length > 0 && (
         <section className="py-24 max-w-6xl mx-auto px-4 relative" ref={featuredRef}>
           {/* Section header */}
           <div className="text-center mb-12" data-reveal>
@@ -260,7 +274,7 @@ export default function HomePage() {
             {songs.map((song, i) => (
               <Link
                 key={song.id}
-                href={song.id.startsWith('sample-') ? '/register' : `/song/${song.id}`}
+                href={session ? `/song/${song.id}` : '/register'}
                 className="group block"
                 data-reveal
                 data-reveal-delay={Math.min(i + 1, 6)}
@@ -305,10 +319,10 @@ export default function HomePage() {
         <div className="glass-strong rounded-3xl p-8 sm:p-12" data-reveal>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 sm:gap-6">
             {[
-              { target: 1234, label: '总生成歌曲', icon: Music, color: 'from-purple-500 to-pink-500' },
-              { target: 56, label: '在线创作者', icon: Mic, color: 'from-blue-500 to-cyan-500' },
-              { target: 13, label: '音乐风格', icon: Sparkles, color: 'from-pink-500 to-purple-500' },
-              { target: 30, suffix: 's', label: '平均生成时长', icon: Download, color: 'from-amber-500 to-orange-500' },
+              { target: statsData.totalSongs, label: '总生成歌曲', icon: Music, color: 'from-purple-500 to-pink-500' },
+              { target: statsData.totalCreators, label: '在线创作者', icon: Mic, color: 'from-blue-500 to-cyan-500' },
+              { target: statsData.totalStyles, label: '音乐风格', icon: Sparkles, color: 'from-pink-500 to-purple-500' },
+              { target: statsData.avgDuration, suffix: 's', label: '平均生成时长', icon: Download, color: 'from-amber-500 to-orange-500' },
             ].map((stat, i) => (
               <div key={i} className="text-center group" data-reveal data-reveal-delay={i + 1}>
                 <div className={`inline-flex p-3 rounded-xl bg-gradient-to-br ${stat.color} mb-3 shadow-lg group-hover:scale-110 transition-transform`}>

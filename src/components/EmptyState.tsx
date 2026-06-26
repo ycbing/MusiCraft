@@ -8,6 +8,7 @@ type Variant = 'no-songs' | 'no-results' | 'no-credits' | 'error' | 'not-found'
 
 interface EmptyStateProps {
   variant?: Variant
+  type?: Variant
   title?: string
   description?: string
   actionLabel?: string
@@ -39,6 +40,7 @@ const VARIANTS: Record<Variant, {
     iconColor: 'text-gray-400',
     defaultTitle: '没有符合条件的歌曲',
     defaultDescription: '调整搜索条件试试',
+    defaultActionLabel: '清除筛选',
     decorative: 'note',
   },
   'no-credits': {
@@ -74,14 +76,16 @@ const VARIANTS: Record<Variant, {
  * Decorative animated music icons per variant.
  */
 export function EmptyState({
-  variant = 'no-songs',
+  variant,
+  type,
   title,
   description,
   actionLabel,
   actionHref,
   onAction,
 }: EmptyStateProps) {
-  const v = VARIANTS[variant]
+  const resolvedVariant = type || variant || 'no-songs'
+  const v = VARIANTS[resolvedVariant]
   const Icon = v.icon
   const finalTitle = title || v.defaultTitle
   const finalDesc = description || v.defaultDescription
@@ -167,8 +171,8 @@ export function EmptyState({
         )}
 
         {/* Action */}
-        {actionHref ? (
-          <Link href={actionHref}>{ActionButton}</Link>
+        {actionHref || resolvedVariant === 'no-songs' ? (
+          <Link href={actionHref || '/create'}>{ActionButton}</Link>
         ) : (
           ActionButton
         )}

@@ -2,7 +2,7 @@
 
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,8 +17,11 @@ import { CoverImage } from '@/components/AlbumCover'
 import { useReveal } from '@/lib/use-reveal'
 import { MusicVisualElement } from '@/components/MusicVisualElement'
 import StatsCards from '@/components/StatsCards'
+import { EmptyState } from '@/components/EmptyState'
+import { toast } from 'sonner'
 import {
   Music, Plus, Clock, Play, Sparkles, Search, X, SlidersHorizontal, ChevronRight, Wand2, Mic,
+  MoreHorizontal, Copy, Trash2, Pause,
 } from 'lucide-react'
 import type { Song, MusicStyle, MusicMood } from '@/types'
 
@@ -99,6 +102,9 @@ export default function DashboardPage() {
   const [moodFilter, setMoodFilter] = useState('all')
   const [sortBy, setSortBy] = useState('newest')
   const [filtersVisible, setFiltersVisible] = useState(true)
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null)
+  const [playingId, setPlayingId] = useState<string | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
   const timelineRef = useReveal<HTMLDivElement>()
 
@@ -111,6 +117,16 @@ export default function DashboardPage() {
         .catch(console.error)
     }
   }, [status, router])
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current = null
+      }
+    }
+  }, [])
 
   const stats = useMemo(() => {
     const totalSongs = songs.length
@@ -175,6 +191,51 @@ export default function DashboardPage() {
     setStatusFilter('all')
     setStyleFilter('all')
     setMoodFilter('all')
+  }
+
+  const handleTogglePlay = useCallback((song: Song) => {
+    if (!song.audioUrl) return
+    const songId = String(song.id)
+    if (playingId === songId) {
+      audioRef.current?.pause()
+      setPlayingId(null)
+    } else {
+      if (audioRef.current) {
+        audioRef.current.pause()
+      }
+      const audio = new Audio(song.audioUrl)
+      audioRef.current = audio
+      audio.play().catch(() => {})
+      audio.onended = () => setPlayingId(null)
+      setPlayingId(songId)
+    }
+  }, [playingId])
+
+  const handleDeleteSong = async (e: React.MouseEvent, songId: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!confirm('确定删除这首歌？')) return
+    try {
+      const res = await fetch(`/api/songs/${songId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+      setSongs(prev => prev.filter(s => String(s.id) !== songId))
+      setMenuOpenId(null)
+      toast.success('歌曲已删除')
+    } catch {
+      toast.error('删除失败')
+    }
+  }
+
+  const handleCopyTitle = async (e: React.MouseEvent, title: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    try {
+      await navigator.clipboard.writeText(title)
+      setMenuOpenId(null)
+      toast.success('标题已复制')
+    } catch {
+      toast.info(title)
+    }
   }
 
   const userName = session?.user?.name || session?.user?.email?.split('@')[0] || '创作者'
@@ -250,6 +311,62 @@ export default function DashboardPage() {
 
         {/* ── Stats Cards ── */}
         {songs.length > 0 && <StatsCards {...stats} />}
+
+        {/* ── Style Distribution Bar Chart ── */}
+        {songs.length > 0 && (
+          <div className="glass rounded-xl p-5 mb-6" data-reveal data-reveal-delay="2">
+            <h3 className="font-title text-sm text-white mb-4 flex items-center gap-2">
+              <span className="w-1.5 h-4 bg-gradient-to-b from-purple-400 to-blue-400 rounded-full" />
+              我的风格
+            </h3>
+            <div className="space-y-2.5">
+              {(() => {
+                const styleCount: Record<string, number> = {}
+                let total = 0
+                for (const s of songs) {
+                  const label = STYLE_LABELS[s.style] || s.style
+                  styleCount[label] = (styleCount[label] || 0) + 1
+                  total++
+                }
+                const entries = Object.entries(styleCount)
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 8)
+                const colors = [
+                  'from-purple-500 to-pink-500',
+                  'from-blue-500 to-cyan-500',
+                  'from-pink-500 to-purple-500',
+                  'from-amber-500 to-orange-500',
+                  'from-green-500 to-emerald-500',
+                  'from-indigo-500 to-blue-500',
+                  'from-red-500 to-rose-500',
+                  'from-teal-500 to-cyan-500',
+                ]
+                return entries.map(([label, count], i) => {
+                  const pct = total > 0 ? Math.round((count / total) * 100) : 0
+                  return (
+                    <div key={label} className="flex items-center gap-3 group">
+                      <span className="text-xs text-[color:var(--text-tertiary)] w-16 text-right shrink-0 group-hover:text-white transition-colors">
+                        {label}
+                      </span>
+                      <div className="flex-1 h-6 bg-white/[0.03] rounded-full overflow-hidden relative">
+                        <div
+                          className={`h-full rounded-full bg-gradient-to-r ${colors[i % colors.length]} transition-all duration-700 ease-out`}
+                          style={{ width: `${Math.max(pct, 4)}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-[color:var(--text-muted)] w-10 text-right tabular-nums group-hover:text-white transition-colors">
+                        {count}
+                      </span>
+                      <span className="text-[10px] text-[color:var(--text-muted)] w-8 text-right tabular-nums">
+                        {pct}%
+                      </span>
+                    </div>
+                  )
+                })
+              })()}
+            </div>
+          </div>
+        )}
 
         {/* ── Search & Filter ── */}
         {songs.length > 0 && (
@@ -342,74 +459,12 @@ export default function DashboardPage() {
 
         {/* ── Empty State ── */}
         {songs.length === 0 && (
-          <div
-            className="text-center py-20 relative"
-            data-reveal
-          >
-            {/* Decorative floating elements */}
-            <div className="absolute top-12 left-1/4 animate-float-y opacity-60">
-              <MusicVisualElement variant="note" opacity={0.1} />
-            </div>
-            <div className="absolute top-24 right-1/4 animate-float-y opacity-50" style={{ animationDelay: '-1.5s' }}>
-              <MusicVisualElement variant="spectrum" opacity={0.08} />
-            </div>
-
-            <div className="relative">
-              <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center ring-1 ring-purple-500/20 shadow-2xl shadow-purple-500/20">
-                <Music className="w-10 h-10 text-purple-400" />
-              </div>
-              <h2 className="font-title text-2xl text-white mb-2">还没有歌曲</h2>
-              <p className="text-[color:var(--text-tertiary)] mb-8 text-sm">创作你的第一首 AI 歌曲</p>
-
-              {/* Quick-start hint cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl mx-auto mb-8">
-                {[
-                  { icon: Wand2, label: '输入主题' },
-                  { icon: Mic, label: 'AI 生成' },
-                  { icon: Music, label: '下载分享' },
-                ].map((step, i) => (
-                  <div
-                    key={i}
-                    className="glass rounded-xl p-3 flex items-center gap-3"
-                    data-reveal
-                    data-reveal-delay={i + 1}
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
-                      <step.icon className="w-4 h-4 text-purple-400" />
-                    </div>
-                    <div className="text-left">
-                      <div className="text-xs text-white font-medium">{step.label}</div>
-                      <div className="text-[10px] text-[color:var(--text-muted)]">第 {i + 1} 步</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <Link href="/create">
-                <Button variant="brand" size="lg" className="breathe-glow">
-                  <Plus className="w-4 h-4 mr-1.5" /> 立即创作
-                </Button>
-              </Link>
-            </div>
-          </div>
+          <EmptyState type="no-songs" />
         )}
 
         {/* ── Filtered Empty ── */}
         {songs.length > 0 && filteredAndSorted.length === 0 && (
-          <div className="text-center py-20 fade-in">
-            <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-gray-500/20 to-gray-600/20 flex items-center justify-center ring-1 ring-white/10">
-              <Search className="w-8 h-8 text-gray-500" />
-            </div>
-            <h2 className="font-title text-xl text-white mb-2">没有符合条件的歌曲</h2>
-            <p className="text-[color:var(--text-tertiary)] mb-6 text-sm">调整搜索条件试试</p>
-            <Button
-              variant="outline"
-              onClick={clearFilters}
-              className="border-purple-500/30 text-purple-300 hover:bg-purple-500/10"
-            >
-              <X className="w-4 h-4 mr-1" /> 清除筛选
-            </Button>
-          </div>
+          <EmptyState type="no-results" actionLabel="清除筛选" onAction={clearFilters} />
         )}
 
         {/* ── Timeline (grouped by date) ── */}
@@ -429,59 +484,105 @@ export default function DashboardPage() {
                 <div className="space-y-1">
                   {group.songs.map((song, sIdx) => {
                     const statusInfo = STATUS_LABELS[song.status] || STATUS_LABELS.draft
+                    const songId = String(song.id)
+                    const isPlaying = playingId === songId
                     return (
-                      <Link
+                      <div
                         key={song.id}
-                        href={`/song/${song.id}`}
-                        className="timeline-row flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/[0.03] hover:translate-x-1 transition-all duration-200 group"
+                        className="timeline-row flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/[0.03] hover:translate-x-1 transition-all duration-200 group relative"
                         data-reveal="fade"
                         data-reveal-delay={Math.min(sIdx + 1, 6)}
                       >
-                        {/* Tiny cover */}
-                        <div className="shrink-0 rounded-lg ring-1 ring-white/10 overflow-hidden shadow-md shadow-black/30">
-                          <CoverImage
-                            style={(song.style || 'pop') as MusicStyle}
-                            mood={(song.mood || 'happy') as MusicMood}
-                            size={40}
-                            className="w-10 h-10 group-hover:scale-110 transition-transform duration-500"
-                          />
-                        </div>
-
-                        {/* Title + meta */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-white truncate">{song.title || '无标题'}</span>
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${statusInfo.color}`}>
-                              {statusInfo.label}
-                            </span>
+                        <Link href={`/song/${song.id}`} className="flex items-center gap-3 flex-1 min-w-0">
+                          {/* Tiny cover */}
+                          <div className="shrink-0 rounded-lg ring-1 ring-white/10 overflow-hidden shadow-md shadow-black/30">
+                            <CoverImage
+                              style={(song.style || 'pop') as MusicStyle}
+                              mood={(song.mood || 'happy') as MusicMood}
+                              size={40}
+                              className="w-10 h-10 group-hover:scale-110 transition-transform duration-500"
+                            />
                           </div>
-                          <div className="flex items-center gap-1.5 text-xs text-[color:var(--text-tertiary)] mt-0.5">
-                            <span>{STYLE_LABELS[song.style] || song.style}</span>
-                            <span className="text-[color:var(--text-muted)]">·</span>
-                            <span>{MOOD_LABELS[song.mood] || song.mood}</span>
-                            {song.duration && (
-                              <>
-                                <span className="text-[color:var(--text-muted)]">·</span>
-                                <span className="flex items-center gap-0.5">
-                                  <Clock className="w-3 h-3" />{song.duration}s
-                                </span>
-                              </>
-                            )}
-                          </div>
-                        </div>
 
-                        {/* Time + play */}
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-xs text-[color:var(--text-muted)] tabular-nums">{formatTime(song.createdAt)}</span>
-                          {song.status === 'completed' && (
-                            <div className="w-8 h-8 rounded-full bg-purple-500/15 border border-purple-500/20 flex items-center justify-center
-                              opacity-0 group-hover:opacity-100 transition-all duration-200 scale-90 group-hover:scale-100">
-                              <Play className="w-3.5 h-3.5 text-purple-300 fill-current" />
+                          {/* Title + meta */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-white truncate">{song.title || '无标题'}</span>
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${statusInfo.color}`}>
+                                {statusInfo.label}
+                              </span>
                             </div>
+                            <div className="flex items-center gap-1.5 text-xs text-[color:var(--text-tertiary)] mt-0.5">
+                              <span>{STYLE_LABELS[song.style] || song.style}</span>
+                              <span className="text-[color:var(--text-muted)]">·</span>
+                              <span>{MOOD_LABELS[song.mood] || song.mood}</span>
+                              {song.duration && (
+                                <>
+                                  <span className="text-[color:var(--text-muted)]">·</span>
+                                  <span className="flex items-center gap-0.5">
+                                    <Clock className="w-3 h-3" />{song.duration}s
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Time */}
+                          <span className="text-xs text-[color:var(--text-muted)] tabular-nums shrink-0">{formatTime(song.createdAt)}</span>
+                          <ChevronRight className="w-4 h-4 text-[color:var(--text-muted)] group-hover:text-white transition-all duration-200 group-hover:translate-x-0.5 shrink-0" />
+                        </Link>
+
+                        {/* Quick play button */}
+                        {song.status === 'completed' && song.audioUrl && (
+                          <button
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleTogglePlay(song); }}
+                            className="shrink-0 w-8 h-8 rounded-full bg-purple-500/15 border border-purple-500/20 flex items-center justify-center
+                              opacity-0 group-hover:opacity-100 hover:bg-purple-500/30 transition-all duration-200 active:scale-90"
+                            title={isPlaying ? '暂停' : '试听'}
+                          >
+                            {isPlaying ? (
+                              <Pause className="w-3.5 h-3.5 text-purple-300" />
+                            ) : (
+                              <Play className="w-3.5 h-3.5 text-purple-300 fill-current" />
+                            )}
+                          </button>
+                        )}
+
+                        {/* More menu */}
+                        <div className="relative shrink-0">
+                          <button
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpenId(menuOpenId === songId ? null : songId); }}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center
+                              opacity-0 group-hover:opacity-100 hover:bg-white/[0.06] transition-all duration-200"
+                            title="更多"
+                          >
+                            <MoreHorizontal className="w-4 h-4 text-gray-400" />
+                          </button>
+
+                          {menuOpenId === songId && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-10"
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpenId(null); }}
+                              />
+                              <div className="absolute right-0 top-full mt-1 z-20 w-36 rounded-xl glass-strong border border-white/10 shadow-2xl shadow-black/50 overflow-hidden animate-in fade-in zoom-in-95 origin-top-right">
+                                <button
+                                  onClick={(e) => handleCopyTitle(e, song.title || '无标题')}
+                                  className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-gray-300 hover:bg-white/[0.05] hover:text-white transition-colors"
+                                >
+                                  <Copy className="w-3.5 h-3.5" /> 复制标题
+                                </button>
+                                <button
+                                  onClick={(e) => handleDeleteSong(e, songId)}
+                                  className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors border-t border-white/[0.04]"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" /> 删除
+                                </button>
+                              </div>
+                            </>
                           )}
-                          <ChevronRight className="w-4 h-4 text-[color:var(--text-muted)] group-hover:text-white transition-all duration-200 group-hover:translate-x-0.5" />
                         </div>
-                      </Link>
+                      </div>
                     )
                   })}
                 </div>

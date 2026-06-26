@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,9 @@ import {
 } from 'lucide-react'
 import type { Song, MusicStyle, MusicMood } from '@/types'
 
+const MAX_POLL_COUNT = 60
+const POLL_INTERVAL = 3000
+
 export default function SongPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -25,32 +28,64 @@ export default function SongPage() {
 
   const [song, setSong] = useState<Song | null>(null)
   const [loading, setLoading] = useState(true)
-  const [polling, setPolling] = useState(false)
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const pollCountRef = useRef(0)
 
   const contentRef = useReveal<HTMLDivElement>()
 
-  useEffect(() => {
-    if (status === 'unauthenticated') router.push('/login')
-    if (status === 'authenticated' && id) fetchSong()
-  }, [status, id, router])
-
-  async function fetchSong() {
+  const fetchSongOnce = useCallback(async () => {
     try {
       const res = await fetch(`/api/songs/${id}`)
       const data = await res.json()
-      setSong(data.song)
-      if (data.song?.status === 'generating') {
-        setPolling(true)
-        setTimeout(fetchSong, 5000)
-      } else {
-        setPolling(false)
-      }
+      return data.song as Song | null
     } catch {
-      // error silently
-    } finally {
-      setLoading(false)
+      return null
     }
-  }
+  }, [id])
+
+  const startPolling = useCallback(() => {
+    pollCountRef.current = 0
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
+
+    pollIntervalRef.current = setInterval(async () => {
+      pollCountRef.current++
+      const updated = await fetchSongOnce()
+      if (!updated) return
+
+      setSong(updated)
+
+      if (updated.status === 'completed' || updated.status === 'failed') {
+        if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+        return
+      }
+
+      if (pollCountRef.current >= MAX_POLL_COUNT) {
+        if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+        toast.error('生成超时，请稍后刷新查看')
+      }
+    }, POLL_INTERVAL)
+  }, [fetchSongOnce])
+
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (status === 'unauthenticated') router.push('/login')
+    if (status === 'authenticated' && id) {
+      fetchSongOnce().then(fetched => {
+        if (fetched) {
+          setSong(fetched)
+          if (fetched.status === 'generating') startPolling()
+        }
+        setLoading(false)
+      })
+    }
+  }, [status, id, router, fetchSongOnce, startPolling])
 
   async function handleDelete() {
     if (!confirm('确定删除这首歌？')) return
@@ -82,20 +117,40 @@ export default function SongPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setSong({ ...song, status: 'generating', audioUrl: null })
-      setPolling(true)
-      setTimeout(fetchSong, 5000)
+      startPolling()
     } catch (err: any) {
       toast.error(err.message)
     }
   }
 
   async function handleShare() {
-    const url = `${window.location.origin}/song/${id}`
+    if (!song) return
     try {
-      await navigator.clipboard.writeText(url)
-      toast.success('链接已复制！')
-    } catch {
-      toast.info(url)
+      // Check if song already has a share_token
+      const res = await fetch(`/api/songs/${id}`)
+      const data = await res.json()
+      let token = data.song?.shareToken
+
+      // Generate share token if not exists
+      if (!token) {
+        const putRes = await fetch(`/api/songs/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ share_token: crypto.randomUUID() }),
+        })
+        const putData = await putRes.json()
+        token = putData.song?.share_token
+      }
+
+      if (token) {
+        const shareUrl = `${window.location.origin}/share/${token}`
+        await navigator.clipboard.writeText(shareUrl)
+        toast.success('分享链接已复制！')
+      } else {
+        throw new Error('无法生成分享链接')
+      }
+    } catch (err: any) {
+      toast.error(err.message || '分享失败')
     }
   }
 

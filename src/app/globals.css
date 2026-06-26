@@ -1,0 +1,254 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: hsl(0 0% 3.9%);
+  --color-foreground: hsl(0 0% 98%);
+  --color-card: hsl(0 0% 7%);
+  --color-card-foreground: hsl(0 0% 98%);
+  --color-popover: hsl(0 0% 7%);
+  --color-popover-foreground: hsl(0 0% 98%);
+  --color-primary: hsl(262 83% 58%);
+  --color-primary-foreground: hsl(0 0% 100%);
+  --color-secondary: hsl(240 4% 16%);
+  --color-secondary-foreground: hsl(0 0% 98%);
+  --color-muted: hsl(240 4% 16%);
+  --color-muted-foreground: hsl(240 5% 65%);
+  --color-accent: hsl(262 83% 58%);
+  --color-accent-foreground: hsl(0 0% 98%);
+  --color-destructive: hsl(0 63% 31%);
+  --color-destructive-foreground: hsl(0 0% 98%);
+  --color-border: hsl(240 4% 16%);
+  --color-input: hsl(240 4% 16%);
+  --color-ring: hsl(262 83% 58%);
+  --radius: 0.75rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+}
+
+/*
+  Brand visual system
+*/
+:root {
+  --brand-primary: #8B5CF6;
+  --brand-secondary: #3B82F6;
+  --brand-accent: #EC4899;
+  --brand-gradient: linear-gradient(135deg, #8B5CF6, #3B82F6);
+  --glass-bg: rgba(255,255,255,0.03);
+  --glass-border: rgba(255,255,255,0.08);
+  --glass-hover: rgba(255,255,255,0.06);
+
+  /* shadcn variables */
+  --background: 0 0% 3.9%;
+  --foreground: 0 0% 98%;
+  --card: 0 0% 7%;
+  --card-foreground: 0 0% 98%;
+  --popover: 0 0% 7%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 262 83% 58%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 4% 16%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 240 4% 16%;
+  --muted-foreground: 240 5% 65%;
+  --accent: 262 83% 58%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 63% 31%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 240 4% 16%;
+  --input: 240 4% 16%;
+  --ring: 262 83% 58%;
+  --radius: 0.75rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+}
+
+/* Brand utility classes */
+@utility glass-card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(12px);
+  border-radius: 16px;
+}
+
+@utility gradient-text {
+  background: var(--brand-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+@utility animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Page enter animation */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+main > * {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: hsl(240 4% 16%);
+  }
+
+  body {
+    background: hsl(0 0% 3.9%);
+    color: hsl(0 0% 98%);
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
+/* Legacy gradient-text as fallback */
+.gradient-text {
+  background: linear-gradient(135deg, #a855f7, #6366f1, #3b82f6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glass effect */
+.glass {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Animated gradient background */
+.hero-gradient {
+  background: radial-gradient(ellipse at top, rgba(168, 85, 247, 0.15), transparent 60%),
+              radial-gradient(ellipse at bottom, rgba(59, 130, 246, 0.1), transparent 60%);
+}
+
+/* Wave animation for music player */
+@keyframes wave {
+  0%, 100% { height: 3px; }
+  50% { height: 16px; }
+}
+
+.wave-bar {
+  animation: wave 0.8s ease-in-out infinite;
+}
+.wave-bar:nth-child(2) { animation-delay: 0.1s; }
+.wave-bar:nth-child(3) { animation-delay: 0.2s; }
+.wave-bar:nth-child(4) { animation-delay: 0.3s; }
+.wave-bar:nth-child(5) { animation-delay: 0.4s; }
+
+/* Pulse ring animation for cover art */
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4); }
+  70% { box-shadow: 0 0 0 15px rgba(139, 92, 246, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0); }
+}
+
+.pulse-ring {
+  animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Fade in animation */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+  animation: fade-in 0.5s ease-out;
+}
+
+/* Phase 2: Step transition animations */
+@keyframes fade-slide-in {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-slide-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-10px); }
+}
+
+@keyframes type-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes type-line-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-fade-slide-in {
+  animation: fade-slide-in 0.3s ease-out both;
+}
+
+.animate-fade-slide-out {
+  animation: fade-slide-out 0.2s ease-in both;
+}
+
+.animate-type-cursor {
+  animation: type-cursor 0.8s step-end infinite;
+}
+
+.animate-type-line-in {
+  animation: type-line-in 0.25s ease-out both;
+}
+
+/* Skeleton pulse for loading states */
+.skeleton-line {
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.1; }
+}
+
+/* Card hover effect */
+.card-hover {
+  transition: all 0.2s ease-out;
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+/* Card glow on hover */
+.card-glow {
+  transition: all 0.2s ease-out;
+}
+.card-glow:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+/* Loading skeleton pulse (alternative delayed variant) */
+@keyframes skeleton-delayed {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.1; }
+}
+.animate-skeleton-delayed {
+  animation: skeleton-delayed 1.5s ease-in-out infinite;
+  animation-delay: 0.1s;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground));
+  border-radius: 3px;
+}
